@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ลูกบาศก์พับ-คลี่ 3 มิติ (จัดวาง+แก้ไขรูป)</title>
+<style>
+  :root{ --S: clamp(70px, min(26vw,26vh), 140px); }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;
+    font-family:-apple-system,'Sarabun','Kanit',sans-serif;
+    background:linear-gradient(160deg,#fef6e4,#e0f7fa);}
+  #app{position:relative;width:100%;height:100%;display:flex;flex-direction:column;}
+  header{text-align:center;padding:8px 6px 0;flex:0 0 auto;}
+  header h1{margin:0;font-size:1.1rem;color:#37474f;}
+  header p{margin:2px 0 0;font-size:.78rem;color:#607d8b;}
+  #status{flex:0 0 auto;text-align:center;font-size:.85rem;font-weight:700;
+    padding:4px;margin:4px 10px 0;border-radius:10px;transition:.2s;}
+  #status.ok{background:#c8e6c9;color:#2e7d32;}
+  #status.bad{background:#ffcdd2;color:#c62828;}
+
+  #stage-wrap{flex:1 1 auto;position:relative;overflow:hidden;
+    touch-action:none;
+    -webkit-perspective:1400px;perspective:1400px;}
+  #stage-wrap.editing{background-image:
+    linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px);
+    background-size:var(--S) var(--S);
+    background-position:center center;}
+  #world{position:absolute;inset:0;transform-origin:50% 50%;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    will-change:transform;}
+  .face{position:absolute;width:var(--S);height:var(--S);
+    border-radius:14px;border:3px solid rgba(0,0,0,.15);
+    box-shadow:0 2px 10px rgba(0,0,0,.15) inset;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    user-select:none; touch-action:none;}
+  .face-visual{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;overflow:hidden;
+    border-radius:11px;}
+  .face-content{width:78%;height:65%;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;}
+  .face-content .emoji{font-size:calc(var(--S) * 0.42);line-height:1;}
+  .face-content img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;
+    -webkit-user-drag:none;}
+  .label{font-size:calc(var(--S)*0.1);font-weight:700;color:#37474f;margin-top:2px;pointer-events:none;}
+  .face.dragging{z-index:80;opacity:.85;box-shadow:0 8px 20px rgba(0,0,0,.35);}
+  #stage-wrap.editing .face{cursor:grab;}
+  #stage-wrap.editing .face::after{content:'✏️';position:absolute;top:2px;right:4px;
+    font-size:calc(var(--S)*0.14);opacity:.75;}
+  #stage-wrap.editing .face.dragging{cursor:grabbing;}
+  #stage-wrap.editing .face.dragging::after{display:none;}
+
+  #controls{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));}
+  button{border:none;border-radius:999px;padding:11px 16px;font-size:.9rem;font-weight:700;
+    color:#fff;box-shadow:0 3px 8px rgba(0,0,0,.2);cursor:pointer;
+    transition:transform .12s, opacity .2s;font-family:inherit;}
+  button:active{transform:scale(.93);}
+  button:disabled{opacity:.4;box-shadow:none;}
+  #btnFold{background:#ff7043;}
+  #btnUnfold{background:#42a5f5;}
+  #btnReset{background:#66bb6a;}
+  #btnAuto{background:#ab47bc;}
+  #btnAuto.on{background:#7b1fa2;box-shadow:0 0 0 3px #ce93d8 inset;}
+  #btnEdit{background:#26a69a;}
+  #btnEdit.on{background:#00695c;box-shadow:0 0 0 3px #80cbc4 inset;}
+
+  /* ---------- แผงแก้ไขรูป ---------- */
+  #editOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);
+    display:flex;align-items:flex-end;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s;z-index:200;}
+  #editOverlay.show{opacity:1;pointer-events:auto;}
+  #editPanel{background:#fff;width:100%;max-width:520px;border-radius:22px 22px 0 0;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    max-height:78vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    transform:translateY(20px);transition:transform .2s;}
+  #editOverlay.show #editPanel{transform:translateY(0);}
+  #editPanel h2{margin:0 0 8px;font-size:1.05rem;color:#37474f;text-align:center;}
+  #editPreviewWrap{display:flex;justify-content:center;margin-bottom:10px;}
+  #editPreview{width:100px;height:100px;border-radius:14px;border:3px solid #e0e0e0;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;}
+  #editPreview .emoji{font-size:44px;}
+  #editPreview img{max-width:100%;max-height:100%;object-fit:contain;}
+  .editRow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:10px;}
+  .editRow button{padding:9px 14px;font-size:.85rem;background:#607d8b;}
+  .editRow button.active{background:#1565c0;box-shadow:0 0 0 3px #90caf9 inset;}
+  #emojiGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px;}
+  #emojiGrid button{padding:8px 0;font-size:1.4rem;border-radius:10px;background:#f1f8f6;
+    color:#000;box-shadow:none;}
+  #emojiGrid button.sel{background:#a5d6a7;box-shadow:0 0 0 2px #2e7d32 inset;}
+  #btnBrowse{background:#ef6c00;width:100%;padding:12px;}
+  #btnCloseEdit{background:#78909c;width:100%;padding:12px;margin-top:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎲 ลูกบาศก์พับ-คลี่ 3 มิติ</h1>
+    <p id="hint">ลากนิ้วบนพื้นที่เพื่อหมุนลูกบาศก์ดูรอบด้าน</p>
+  </header>
+  <div id="status">✅ พร้อมพับเป็นลูกบาศก์</div>
+
+  <div id="stage-wrap">
+    <div id="world"></div>
+  </div>
+
+  <div id="controls">
+    <button id="btnEdit">🧩 จัดวางรูป</button>
+    <button id="btnFold">🔽 พับ</button>
+    <button id="btnUnfold">🔼 คลี่</button>
+    <button id="btnReset">↺ Reset</button>
+    <button id="btnAuto">🔄 หมุนอัตโนมัติ</button>
+  </div>
+</div>
+
+<!-- แผงแก้ไขรูป -->
+<div id="editOverlay">
+  <div id="editPanel">
+    <h2 id="editTitle">แก้ไขรูป</h2>
+    <div id="editPreviewWrap"><div id="editPreview"></div></div>
+
+    <button id="btnBrowse">📷 เลือกรูปจากอุปกรณ์</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <div id="emojiGrid"></div>
+
+    <div class="editRow">
+      <button id="btnRotate">↻ หมุน 90° (<span id="rotVal">0</span>°)</button>
+      <button id="btnFlip">⇋ พลิกกลับด้าน</button>
+    </div>
+
+    <button id="btnCloseEdit">✅ เสร็จแล้ว</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const worldEl = document.getElementById('world');
+  const stageWrap = document.getElementById('stage-wrap');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const btnFold = document.getElementById('btnFold');
+  const btnUnfold = document.getElementById('btnUnfold');
+  const btnReset = document.getElementById('btnReset');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnEdit = document.getElementById('btnEdit');
+
+  const editOverlay = document.getElementById('editOverlay');
+  const editTitle = document.getElementById('editTitle');
+  const editPreview = document.getElementById('editPreview');
+  const btnBrowse = document.getElementById('btnBrowse');
+  const fileInput = document.getElementById('fileInput');
+  const emojiGridEl = document.getElementById('emojiGrid');
+  const btnRotate = document.getElementById('btnRotate');
+  const rotVal = document.getElementById('rotVal');
+  const btnFlip = document.getElementById('btnFlip');
+  const btnCloseEdit = document.getElementById('btnCloseEdit');
+
+  const EMOJI_CHOICES = ['🐘','🐱','🐔','🕊️','🐶','🐒','🦁','🐯','🐻','🐼','🐨','🦊',
+                          '🐰','🐹','🐭','🐮','🐷','🐸','🦄','🐴','🐺','🦓','🦒','🐢',
+                          '🐙','🦋','🐝','⭐','❤️','🌟'];
+
+  const ROOT = 'elephant';
+  const INITIAL = {
+    elephant:{gx:0,gy:0, emoji:'🐘', label:'ช้าง',     color:'#d7ccc8'},
+    cat:     {gx:0,gy:-1,emoji:'🐱', label:'แมว',      color:'#ffe0b2'},
+    chicken: {gx:-1,gy:0,emoji:'🐔', label:'ไก่',      color:'#fff9c4'},
+    pigeon:  {gx:1,gy:0, emoji:'🕊️', label:'นกพิราบ',  color:'#c8e6c9'},
+    dog:     {gx:1,gy:1, emoji:'🐶', label:'สุนัข',     color:'#ffccbc'},
+    monkey:  {gx:2,gy:1, emoji:'🐒', label:'ลิง',      color:'#d1c4e9'},
+  };
+
+  const DIRS = {
+    up:   {dx:0,dy:-1, boxOffset:[0,-1], cssOrigin:'50% 100%', originOffset:[0,0.5],  axis:'X', sign:1},
+    down: {dx:0,dy:1,  boxOffset:[0,1],  cssOrigin:'50% 0%',   originOffset:[0,-0.5], axis:'X', sign:-1},
+    left: {dx:-1,dy:0, boxOffset:[-1,0], cssOrigin:'100% 50%', originOffset:[0.5,0],  axis:'Y', sign:-1},
+    right:{dx:1,dy:0,  boxOffset:[1,0],  cssOrigin:'0% 50%',   originOffset:[-0.5,0], axis:'Y', sign:1},
+  };
+  function dirFromDelta(dx,dy){
+    for(const k in DIRS) if(DIRS[k].dx===dx && DIRS[k].dy===dy) return DIRS[k];
+    return null;
+  }
+
+  let faces = {};
+  Object.keys(INITIAL).forEach(id=>{
+    faces[id] = Object.assign({}, INITIAL[id], {
+      rotate:0, flip:false,
+      content:{type:'emoji', value: INITIAL[id].emoji}
+    });
+    const el = document.createElement('div');
+    el.className='face';
+    el.style.background = faces[id].color;
+
+    const visual = document.createElement('div');
+    visual.className='face-visual';
+    const contentEl = document.createElement('div');
+    contentEl.className='face-content';
+    visual.appendChild(contentEl);
+    el.appendChild(visual);
+
+    faces[id].el = el;
+    faces[id].contentEl = contentEl;
+    updateFaceVisual(id);
+  });
+
+  function updateFaceVisual(id){
+    const f = faces[id], c = f.content;
+    f.contentEl.innerHTML = c.type==='image'
+      ? `<img src="${c.value}" draggable="false">`
+      : `<div class="emoji">${c.value}</div>`;
+    f.contentEl.style.transform = `rotate(${f.rotate}deg) scaleX(${f.flip?-1:1})`;
+  }
+
+  let fold = 0, rotX=-22, rotY=35, autoRotate=false, editMode=false, editPanelOpen=false;
+  let foldAnimId=null;
+
+  function buildTopology(){
+    const order=[ROOT], visited=new Set([ROOT]), parentOf={}, dirOf={};
+    let i=0;
+    while(i<order.length){
+      const cur=order[i++];
+      for(const id in faces){
+        if(visited.has(id)) continue;
+        const dx=faces[id].gx-faces[cur].gx, dy=faces[id].gy-faces[cur].gy;
+        const d=dirFromDelta(dx,dy);
+        if(!d) continue;
+        visited.add(id); parentOf[id]=cur; dirOf[id]=d;
+        order.push(id);
+      }
+    }
+    return {order, parentOf, dirOf, allVisited: visited.size===6};
+  }
+
+  function rebuildDOM(topo){
+    for(const id of topo.order){
+      const el = faces[id].el;
+      if(id===ROOT){
+        worldEl.appendChild(el);
+        el.style.left='50%'; el.style.top='50%';
+        el.style.marginLeft='calc(var(--S) / -2)';
+        el.style.marginTop='calc(var(--S) / -2)';
+        el.style.transformOrigin='';
+        el.style.transform='translateZ(calc(var(--S)/2))';
+      } else {
+        const p = faces[topo.parentOf[id]].el;
+        p.appendChild(el);
+        const d = topo.dirOf[id];
+        el.style.marginLeft=''; el.style.marginTop='';
+        el.style.left = `calc(var(--S) * ${d.boxOffset[0]})`;
+        el.style.top  = `calc(var(--S) * ${d.boxOffset[1]})`;
+        el.style.transformOrigin = d.cssOrigin;
+        el.dataset.axis = d.axis;
+        el.dataset.sign = d.sign;
+      }
+    }
+  }
+
+  function applyFold(){
+    const a = 90*fold;
+    for(const id in faces){
+      if(id===ROOT) continue;
+      const el=faces[id].el, axis=el.dataset.axis, sign=parseFloat(el.dataset.sign);
+      if(!axis) continue;
+      const ang = sign*a;
+      el.style.transform = axis==='X' ? `rotateX(${ang}deg)` : `rotateY(${ang}deg)`;
+    }
+  }
+  function applyWorld(){ worldEl.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`; }
+
+  function localMatrix(d,t){
+    const ang = d.sign*90*t;
+    let m = new DOMMatrix();
+    m = m.translate(d.boxOffset[0], d.boxOffset[1], 0);
+    m = m.translate(d.originOffset[0], d.originOffset[1], 0);
+    m = d.axis==='X' ? m.rotate(ang,0,0) : m.rotate(0,ang,0);
+    m = m.translate(-d.originOffset[0], -d.originOffset[1], 0);
+    return m;
+  }
+  function checkValidity(topo){
+    if(!topo.allVisited) return {ok:false, msg:'⚠️ ชิ้นส่วนไม่เชื่อมติดกันทุกด้าน ลองลากให้ชิดกัน'};
+    const world = {}; world[ROOT] = new DOMMatrix().translate(0,0,0.5);
+    for(const id of topo.order){
+      if(id===ROOT) continue;
+      world[id] = world[topo.parentOf[id]].multiply(localMatrix(topo.dirOf[id],1));
+    }
+    const seen = new Set();
+    for(const id in world){
+      const p = world[id].transformPoint(new DOMPoint(0,0,0,1));
+      const key = [p.x,p.y,p.z].map(v=>Math.round(v*2)/2).join(',');
+      seen.add(key);
+    }
+    const expected = new Set(['0.5,0,0','-0.5,0,0','0,0.5,0','0,-0.5,0','0,0,0.5','0,0,-0.5']);
+    const ok = seen.size===6 && [...seen].every(k=>expected.has(k));
+    return ok ? {ok:true} : {ok:false, msg:'⚠️ ผังนี้พับแล้วจะซ้อนทับกัน ลองจัดตำแหน่งใหม่'};
+  }
+
+  function refresh(){
+    const topo = buildTopology();
+    rebuildDOM(topo);
+    applyFold();
+    const v = checkValidity(topo);
+    if(v.ok){
+      statusEl.textContent='✅ พร้อมพับเป็นลูกบาศก์';
+      statusEl.className='ok';
+      btnFold.disabled=false;
+    } else {
+      statusEl.textContent=v.msg;
+      statusEl.className='bad';
+      btnFold.disabled=true;
+    }
+    return v.ok;
+  }
+
+  function animateFold(target, duration=900){
+    if(!checkValidity(buildTopology()).ok && target===1) return;
+    if(foldAnimId) cancelAnimationFrame(foldAnimId);
+    const start=fold, t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/duration);
+      const eased = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+      fold = start + (target-start)*eased;
+      applyFold();
+      if(p<1) foldAnimId=requestAnimationFrame(step); else foldAnimId=null;
+    }
+    foldAnimId=requestAnimationFrame(step);
+  }
+
+  btnFold.addEventListener('click', ()=> animateFold(1));
+  btnUnfold.addEventListener('click', ()=> animateFold(0));
+  btnReset.addEventListener('click', ()=>{
+    Object.keys(INITIAL).forEach(id=>{
+      faces[id].gx=INITIAL[id].gx; faces[id].gy=INITIAL[id].gy;
+      faces[id].rotate=0; faces[id].flip=false;
+      faces[id].content={type:'emoji', value: INITIAL[id].emoji};
+      updateFaceVisual(id);
+    });
+    animateFold(0);
+    rotX=-22; rotY=35; applyWorld();
+    autoRotate=false; btnAuto.classList.remove('on');
+    closeEditPanel();
+    setEditMode(false);
+    refresh();
+  });
+  btnAuto.addEventListener('click', ()=>{
+    autoRotate=!autoRotate; btnAuto.classList.toggle('on',autoRotate);
+  });
+  btnEdit.addEventListener('click', ()=> setEditMode(!editMode));
+
+  function setEditMode(on){
+    editMode = on;
+    btnEdit.classList.toggle('on', on);
+    stageWrap.classList.toggle('editing', on);
+    hintEl.textContent = on
+      ? '👆 ลากรูปเพื่อสลับตำแหน่ง หรือแตะเบาๆ เพื่อแก้ไขรูป'
+      : 'ลากนิ้วบนพื้นที่เพื่อหมุนลูกบาศก์ดูรอบด้าน';
+    if(on){ animateFold(0,300); autoRotate=false; btnAuto.classList.remove('on'); }
+    else { closeEditPanel(); }
+    refresh();
+  }
+
+  // ---------- หมุนลูกบาศก์ ----------
+  let worldDragging=false, lastX=0, lastY=0;
+  stageWrap.addEventListener('pointerdown', e=>{
+    if(editMode) return;
+    stageWrap.setPointerCapture(e.pointerId);
+    worldDragging=true; lastX=e.clientX; lastY=e.clientY;
+    autoRotate=false; btnAuto.classList.remove('on');
+  });
+  stageWrap.addEventListener('pointermove', e=>{
+    if(!worldDragging || editMode) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    rotY+=dx*0.4; rotX-=dy*0.4; applyWorld();
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>
+    stageWrap.addEventListener(ev, ()=> worldDragging=false));
+
+  // ---------- ลาก(สลับ) หรือแตะ(แก้ไข) แต่ละหน้า ----------
+  Object.keys(faces).forEach(id=>{
+    const el = faces[id].el;
+    let dragState=null;
+    el.addEventListener('pointerdown', e=>{
+      if(!editMode || editPanelOpen) return;
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      const S = el.getBoundingClientRect().width;
+      dragState = {
+        startX:e.clientX, startY:e.clientY, S,
+        origGx:faces[id].gx, origGy:faces[id].gy,
+        origTransform: el.style.transform, moved:false
+      };
+    });
+    el.addEventListener('pointermove', e=>{
+      if(!editMode || !dragState) return;
+      const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+      if(!dragState.moved && (Math.abs(dx)>6 || Math.abs(dy)>6)){
+        dragState.moved=true;
+        el.classList.add('dragging');
+      }
+      if(dragState.moved){
+        el.style.transform = `${dragState.origTransform} translate(${dx}px, ${dy}px)`;
+      }
+    });
+    function endDrag(e){
+      if(!editMode || !dragState) return;
+      const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+      el.classList.remove('dragging');
+      if(dragState.moved){
+        const S = dragState.S;
+        const dgx = Math.round(dx/S), dgy = Math.round(dy/S);
+        const targetGx = dragState.origGx+dgx, targetGy = dragState.origGy+dgy;
+        const occupant = Object.keys(faces).find(k=> k!==id && faces[k].gx===targetGx && faces[k].gy===targetGy);
+        if(occupant){
+          const tmp = {gx:faces[id].gx, gy:faces[id].gy};
+          faces[occupant].gx = tmp.gx; faces[occupant].gy = tmp.gy;
+          faces[id].gx = targetGx; faces[id].gy = targetGy;
+        } else {
+          faces[id].gx = targetGx; faces[id].gy = targetGy;
+        }
+        refresh();
+      } else {
+        refresh();
+        openEditPanel(id);
+      }
+      dragState=null;
+    }
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  });
+
+  // ---------- แผงแก้ไขรูป ----------
+  let currentEditId = null;
+
+  // สร้างปุ่มอีโมจิครั้งเดียว
+  EMOJI_CHOICES.forEach(em=>{
+    const b = document.createElement('button');
+    b.textContent = em;
+    b.dataset.emoji = em;
+    b.addEventListener('click', ()=>{
+      if(!currentEditId) return;
+      faces[currentEditId].content = {type:'emoji', value: em};
+      updateFaceVisual(currentEditId);
+      refreshEditPanel();
+    });
+    emojiGridEl.appendChild(b);
+  });
+
+  function openEditPanel(id){
+    currentEditId = id;
+    editPanelOpen = true;
+    editTitle.textContent = `แก้ไขรูป: ${faces[id].label}`;
+    refreshEditPanel();
+    editOverlay.classList.add('show');
+  }
+  function closeEditPanel(){
+    editPanelOpen = false;
+    currentEditId = null;
+    editOverlay.classList.remove('show');
+  }
+  function refreshEditPanel(){
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    editPreview.innerHTML = f.content.type==='image'
+      ? `<img src="${f.content.value}">`
+      : `<div class="emoji">${f.content.value}</div>`;
+    const previewInner = editPreview.querySelector('img, .emoji');
+    if(previewInner) previewInner.style.transform = `rotate(${f.rotate}deg) scaleX(${f.flip?-1:1})`;
+    rotVal.textContent = f.rotate;
+    btnFlip.classList.toggle('active', f.flip);
+    // ไฮไลต์อีโมจิที่เลือกอยู่
+    Array.from(emojiGridEl.children).forEach(b=>{
+      b.classList.toggle('sel', f.content.type==='emoji' && b.dataset.emoji===f.content.value);
+    });
+  }
+
+  btnRotate.addEventListener('click', ()=>{
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    f.rotate = (f.rotate + 90) % 360;
+    updateFaceVisual(currentEditId);
+    refreshEditPanel();
+  });
+  btnFlip.addEventListener('click', ()=>{
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    f.flip = !f.flip;
+    updateFaceVisual(currentEditId);
+    refreshEditPanel();
+  });
+  btnBrowse.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', ()=>{
+    const file = fileInput.files && fileInput.files[0];
+    if(!file || !currentEditId) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      faces[currentEditId].content = {type:'image', value: reader.result};
+      updateFaceVisual(currentEditId);
+      refreshEditPanel();
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+  btnCloseEdit.addEventListener('click', closeEditPanel);
+  editOverlay.addEventListener('click', e=>{
+    if(e.target===editOverlay) closeEditPanel();
+  });
+
+  function loop(){
+    if(autoRotate){ rotY+=0.4; applyWorld(); }
+    requestAnimationFrame(loop);
+  }
+
+  refresh();
+  applyWorld();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
