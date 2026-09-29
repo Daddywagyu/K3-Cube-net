@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ลูกบาศก์มหาสนุก — พับ-คลี่ + กลิ้งลูกบาศก์ (อนุบาล)</title>
+<style>
+  :root{ --S: clamp(70px, min(26vw,26vh), 140px); --RS: 90px; --NC: 44px; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;
+    font-family:-apple-system,'Sarabun','Kanit',sans-serif;
+    background:linear-gradient(160deg,#fef6e4,#e0f7fa);}
+  #app{position:relative;width:100%;height:100%;display:flex;flex-direction:column;}
+  header{text-align:center;padding:5px 6px 0;flex:0 0 auto;}
+  header h1{margin:0;font-size:1rem;color:#37474f;}
+  header p{margin:2px 0 0;font-size:.74rem;color:#607d8b;}
+  #status{flex:0 0 auto;text-align:center;font-size:.85rem;font-weight:700;
+    padding:4px;margin:4px 10px 0;border-radius:10px;transition:.2s;}
+  #status.ok{background:#c8e6c9;color:#2e7d32;}
+  #status.bad{background:#ffcdd2;color:#c62828;}
+
+  #stage-wrap{flex:1 1 auto;position:relative;overflow:hidden;
+    touch-action:none;
+    -webkit-perspective:1400px;perspective:1400px;}
+  #stage-wrap.editing{background-image:
+    linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px);
+    background-size:var(--S) var(--S);
+    background-position:center center;}
+  #world{position:absolute;inset:0;transform-origin:50% 50%;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    will-change:transform;}
+  .face{position:absolute;width:var(--S);height:var(--S);
+    border-radius:14px;border:3px solid rgba(0,0,0,.15);
+    box-shadow:0 2px 10px rgba(0,0,0,.15) inset;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    user-select:none; touch-action:none;}
+  .face-visual{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;overflow:hidden;
+    border-radius:11px;}
+  .face-content{width:78%;height:65%;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;}
+  .face-content .emoji{font-size:calc(var(--S) * 0.42);line-height:1;}
+  .face-content img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;
+    -webkit-user-drag:none;}
+  .face.dragging{z-index:80;opacity:.85;box-shadow:0 8px 20px rgba(0,0,0,.35);}
+  #stage-wrap.editing .face{cursor:grab;}
+  #stage-wrap.editing .face::after{content:'✏️';position:absolute;top:2px;right:4px;
+    font-size:calc(var(--S)*0.14);opacity:.75;}
+  #stage-wrap.editing .face.dragging{cursor:grabbing;}
+  #stage-wrap.editing .face.dragging::after{display:none;}
+
+  #controls{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom));}
+  button{border:none;border-radius:999px;padding:11px 16px;font-size:.9rem;font-weight:700;
+    color:#fff;box-shadow:0 3px 8px rgba(0,0,0,.2);cursor:pointer;
+    transition:transform .12s, opacity .2s;font-family:inherit;}
+  button:active{transform:scale(.93);}
+  button:disabled{opacity:.4;box-shadow:none;}
+  #btnFold{background:#ff7043;}
+  #btnUnfold{background:#42a5f5;}
+  #btnReset{background:#66bb6a;}
+  #btnAuto{background:#ab47bc;}
+  #btnAuto.on{background:#7b1fa2;box-shadow:0 0 0 3px #ce93d8 inset;}
+  #btnEdit{background:#26a69a;}
+  #btnEdit.on{background:#00695c;box-shadow:0 0 0 3px #80cbc4 inset;}
+  #btnToRoll{background:#ef6c00;}
+
+  /* ---------- แผงแก้ไขรูป (เดิม) ---------- */
+  #editOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);
+    display:flex;align-items:flex-end;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s;z-index:200;}
+  #editOverlay.show{opacity:1;pointer-events:auto;}
+  #editPanel{background:#fff;width:100%;max-width:520px;border-radius:22px 22px 0 0;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    max-height:78vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    transform:translateY(20px);transition:transform .2s;}
+  #editOverlay.show #editPanel{transform:translateY(0);}
+  #editPanel h2{margin:0 0 8px;font-size:1.05rem;color:#37474f;text-align:center;}
+  #editPreviewWrap{display:flex;justify-content:center;margin-bottom:10px;}
+  #editPreview{width:100px;height:100px;border-radius:14px;border:3px solid #e0e0e0;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;}
+  #editPreview .emoji{font-size:44px;}
+  #editPreview img{max-width:100%;max-height:100%;object-fit:contain;}
+  .editRow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:10px;}
+  .editRow button{padding:9px 14px;font-size:.85rem;background:#607d8b;}
+  .editRow button.active{background:#1565c0;box-shadow:0 0 0 3px #90caf9 inset;}
+  #emojiGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px;}
+  #emojiGrid button{padding:8px 0;font-size:1.4rem;border-radius:10px;background:#f1f8f6;
+    color:#000;box-shadow:none;}
+  #emojiGrid button.sel{background:#a5d6a7;box-shadow:0 0 0 2px #2e7d32 inset;}
+  #btnBrowse{background:#ef6c00;width:100%;padding:12px;}
+  #btnCloseEdit{background:#78909c;width:100%;padding:12px;margin-top:6px;}
+
+  /* ================= โหมด / UI เด็ก ================= */
+  #modeTabs{flex:0 0 auto;display:flex;gap:5px;justify-content:center;flex-wrap:wrap;padding:5px 6px 2px;}
+  #modeTabs .tab{background:#b0bec5;padding:9px 13px;font-size:.88rem;}
+  #modeTabs .tab.active{background:#ff7043;box-shadow:0 0 0 3px #ffccbc inset;}
+  #btnSound{background:#5c6bc0;padding:9px 12px;font-size:1rem;}
+  .panel{display:none;flex:1 1 auto;min-height:0;flex-direction:column;}
+  .panel.active{display:flex;}
+  .stageSlot{flex:1 1 auto;min-height:0;position:relative;display:flex;}
+  .ctrlArea{flex:0 0 auto;padding:2px 8px calc(6px + env(safe-area-inset-bottom));
+    max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .ctrlRow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:4px 0;}
+  .bubble{background:#fff;border-radius:16px;padding:8px 12px;margin:6px auto;max-width:560px;
+    text-align:center;font-size:1rem;font-weight:800;color:#37474f;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  button.kid{background:#42a5f5;border-radius:18px;font-size:.98rem;padding:11px 15px;}
+  button.kid.green{background:#66bb6a;} button.kid.pink{background:#ec407a;}
+  button.kid.orange{background:#ef6c00;} button.kid.purple{background:#8e24aa;}
+  button.kid.teal{background:#26a69a;} button.kid.grey{background:#78909c;}
+  button.kid.on{box-shadow:0 0 0 3px #fff59d inset;}
+  .dpad{display:grid;grid-template-columns:repeat(3,70px);gap:6px;justify-content:center;margin:4px auto;}
+  .dpad button{font-size:1.4rem;padding:10px 0;background:#26a69a;border-radius:16px;}
+  .dpad .up{grid-column:2;grid-row:1;}
+  .dpad .left{grid-column:1;grid-row:2;}
+  .dpad .down{grid-column:2;grid-row:2;}
+  .dpad .right{grid-column:3;grid-row:2;}
+  .dpad .lbl{display:block;font-size:.55rem;margin-top:2px;opacity:.9;}
+  .choiceRow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:6px 0;}
+  .choiceRow button{min-width:78px;min-height:68px;background:#ffb300;color:#37474f;
+    border-radius:20px;font-size:1.7rem;font-weight:900;display:flex;align-items:center;justify-content:center;}
+  .choiceRow button img{width:52px;height:52px;object-fit:contain;}
+  .stars{text-align:center;font-size:1.3rem;min-height:1.4rem;letter-spacing:2px;}
+  .levelRow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:4px;}
+  .levelRow button{background:#7e57c2;padding:8px 13px;font-size:.85rem;}
+  .levelRow button.active{background:#4527a0;box-shadow:0 0 0 3px #b39ddb inset;}
+
+  /* ---------- เวที 3D + แผนภาพคลี่ ---------- */
+  #stageArea{flex:1 1 auto;min-height:0;min-width:0;display:flex;width:100%;}
+  #rollStage{flex:1 1 auto;min-height:0;min-width:0;position:relative;overflow:hidden;}
+  #rollViewport{position:absolute;inset:0;overflow:hidden;touch-action:none;
+    -webkit-perspective:1200px;perspective:1200px;}
+  #rollWorld{position:absolute;left:50%;top:52%;width:0;height:0;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;}
+  #rollCam,#rollTrack,#rollPivot,#rollCube,#rollStairs{position:absolute;left:0;top:0;width:0;height:0;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;}
+  #rollGround{position:absolute;width:calc(var(--RS)*24);height:calc(var(--RS)*24);
+    left:calc(var(--RS)*-12);top:calc(var(--RS)*-12);
+    transform:translate3d(0, calc(var(--RS)*0.5), 0) rotateX(90deg);
+    background:
+      repeating-linear-gradient(0deg, rgba(0,121,107,.22) 0 2px, transparent 2px var(--RS)),
+      repeating-linear-gradient(90deg, rgba(0,121,107,.22) 0 2px, transparent 2px var(--RS)),
+      #d7f2ee;}
+  .rface{position:absolute;width:var(--RS);height:var(--RS);
+    left:calc(var(--RS)/-2);top:calc(var(--RS)/-2);
+    border-radius:12px;border:3px solid rgba(0,0,0,.18);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    font-size:calc(var(--RS)*0.5);font-weight:900;color:#37474f;
+    box-shadow:0 0 0 2px rgba(255,255,255,.45) inset;}
+  .rface img{width:80%;height:80%;object-fit:contain;-webkit-user-drag:none;}
+  .rface.hl{box-shadow:0 0 0 6px #ffd54f inset, 0 0 26px #ffa000;}
+  .stepTread{position:absolute;width:calc(var(--RS)*2.4);height:var(--RS);
+    left:calc(var(--RS)*-1.2);top:calc(var(--RS)*-0.5);
+    background:#ffe0b2;border:2px solid #ffb74d;}
+  .stepRiser{position:absolute;width:calc(var(--RS)*2.4);height:var(--RS);
+    left:calc(var(--RS)*-1.2);top:calc(var(--RS)*-0.5);
+    background:#ffcc80;border:2px solid #ffa726;color:#8d6e63;font-weight:800;
+    display:flex;align-items:center;justify-content:center;font-size:calc(var(--RS)*0.2);}
+  #hintArrow{position:absolute;left:50%;top:8%;transform:translateX(-50%);
+    font-size:2.4rem;opacity:0;transition:.2s;pointer-events:none;z-index:5;}
+  #hintArrow.show{opacity:1;animation:pulseA 1s infinite;}
+  @keyframes pulseA{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.25)}}
+
+  /* ---------- NET MAP ---------- */
+  #netSide{flex:0 0 auto;width:178px;display:flex;flex-direction:column;align-items:center;
+    gap:4px;padding:6px 4px;background:rgba(255,255,255,.62);
+    border-left:2px solid rgba(0,0,0,.06);overflow:hidden;}
+  #netSide.hidden{display:none;}
+  .netTitle{font-size:.72rem;font-weight:800;color:#546e7a;text-align:center;}
+  .netGrid{display:grid;grid-template-columns:repeat(3,var(--NC));
+    grid-auto-rows:var(--NC);gap:4px;justify-content:center;}
+  .netCell{border-radius:9px;border:2px solid rgba(0,0,0,.14);position:relative;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    font-size:calc(var(--NC)*0.5);font-weight:900;color:#37474f;background:#fff;}
+  .netCell img{width:76%;height:76%;object-fit:contain;}
+  .netCell .tag{position:absolute;left:0;right:0;bottom:0;font-size:7px;line-height:1.5;
+    background:rgba(255,255,255,.8);color:#607d8b;font-weight:700;text-align:center;}
+  .netCell.isTop{box-shadow:0 0 0 3px #ffb300, 0 0 12px rgba(255,179,0,.6);}
+  .netCell.tapable{cursor:pointer;}
+  .netCell.tapable:active{transform:scale(.9);}
+  .netCell.aim{box-shadow:0 0 0 3px #4fc3f7;}
+  .prevWrap{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
+  .prevItem{display:flex;align-items:center;gap:2px;background:#fff;border-radius:8px;
+    padding:2px 5px;font-size:.78rem;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+  .prevItem .mini{width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+    font-size:17px;font-weight:900;border-radius:5px;overflow:hidden;}
+  .prevItem .mini img{width:100%;height:100%;object-fit:contain;}
+  .netBtns{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;}
+  .netBtns button{padding:5px 8px;font-size:.68rem;border-radius:10px;background:#78909c;box-shadow:none;}
+  .netBtns button.on{background:#ef6c00;}
+  @media (orientation:portrait){
+    #stageArea{flex-direction:column;}
+    #netSide{width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;
+      gap:8px;border-left:none;border-top:2px solid rgba(0,0,0,.06);padding:5px;}
+    .netTitle{display:none;}
+    .prevWrap{flex-direction:column;}
+  }
+  #toast{position:fixed;left:50%;top:16%;transform:translate(-50%,-12px);
+    background:rgba(255,255,255,.96);border-radius:20px;padding:12px 22px;
+    font-size:1.15rem;font-weight:900;color:#2e7d32;box-shadow:0 6px 22px rgba(0,0,0,.22);
+    opacity:0;pointer-events:none;transition:.25s;z-index:300;text-align:center;}
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎲 ลูกบาศก์มหาสนุก</h1>
+    <p id="hint">ลากนิ้วบนพื้นที่เพื่อหมุนลูกบาศก์ดูรอบด้าน</p>
+  </header>
+
+  <nav id="modeTabs">
+    <button class="tab" data-mode="learn">🎓 เรียนรู้</button>
+    <button class="tab" data-mode="play">🎮 ทดลอง</button>
+    <button class="tab" data-mode="net">🧩 พับ-คลี่</button>
+    <button id="btnSound">🔊</button>
+  </nav>
+
+  <!-- ============ PANEL: พับ-คลี่ (ระบบเดิมทั้งหมด) ============ -->
+  <section class="panel" id="panelNet">
+    <div id="status">✅ พร้อมพับเป็นลูกบาศก์</div>
+    <div id="stage-wrap">
+      <div id="world"></div>
+    </div>
+    <div id="controls">
+      <button id="btnEdit">🧩 จัดวางรูป</button>
+      <button id="btnFold">🔽 พับ</button>
+      <button id="btnUnfold">🔼 คลี่</button>
+      <button id="btnReset">↺ Reset</button>
+      <button id="btnAuto">🔄 หมุนอัตโนมัติ</button>
+      <button id="btnToRoll">🎲 ทดลองกลิ้ง</button>
+    </div>
+  </section>
+
+  <!-- ============ PANEL: เรียนรู้ ============ -->
+  <section class="panel" id="panelLearn">
+    <div class="levelRow" id="lessonTabs"></div>
+    <div class="stageSlot"></div>
+    <div class="ctrlArea">
+      <div class="bubble" id="learnMsg"></div>
+      <div class="ctrlRow" id="learnCtrl"></div>
+      <div class="stars" id="learnStars"></div>
+    </div>
+  </section>
+
+  <!-- ============ PANEL: ทดลอง ============ -->
+  <section class="panel" id="panelPlay">
+    <div class="stageSlot"></div>
+    <div class="ctrlArea">
+      <div class="dpad">
+        <button class="up" data-roll="backward">⬆️<span class="lbl">ออกจากเรา</span></button>
+        <button class="left" data-roll="left">⬅️<span class="lbl">ซ้าย</span></button>
+        <button class="down" data-roll="forward">⬇️<span class="lbl">เข้าหาเรา</span></button>
+        <button class="right" data-roll="right">➡️<span class="lbl">ขวา</span></button>
+      </div>
+      <div class="ctrlRow">
+        <button class="kid green" id="btnPlayReset">↺ เริ่มใหม่</button>
+        <button class="kid orange" id="btnStair">🪜 บันได</button>
+        <button class="kid teal" id="btnFaceSetPlay">🔤 สลับหน้า</button>
+        <button class="kid grey" id="btnNetToggle">🗺️ แผนภาพคลี่</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- เวที 3D + แผนภาพคลี่ (ย้ายไปมาระหว่างโหมด) -->
+<div id="stageArea">
+  <div id="rollStage">
+    <div id="rollViewport">
+      <div id="rollWorld">
+        <div id="rollCam">
+          <div id="rollGround"></div>
+          <div id="rollStairs"></div>
+          <div id="rollTrack"><div id="rollPivot"><div id="rollCube"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="hintArrow">➡️</div>
+  </div>
+  <aside id="netSide">
+    <div class="netTitle">🗺️ แผนภาพคลี่<br>(แตะช่องข้าง ๆ ให้ขึ้นบน)</div>
+    <div class="netGrid" id="netGrid"></div>
+    <div class="prevWrap" id="netPrev"></div>
+    <div class="netBtns">
+      <button id="btnNetOrient">📐 ทิศจริง</button>
+      <button id="btnNetPredict">🔮 ทำนาย</button>
+    </div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+
+<!-- แผงแก้ไขรูป (ของเดิม) -->
+<div id="editOverlay">
+  <div id="editPanel">
+    <h2 id="editTitle">แก้ไขรูป</h2>
+    <div id="editPreviewWrap"><div id="editPreview"></div></div>
+
+    <button id="btnBrowse">📷 เลือกรูปจากอุปกรณ์</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <div id="emojiGrid"></div>
+
+    <div class="editRow">
+      <button id="btnRotate">↻ หมุน 90° (<span id="rotVal">0</span>°)</button>
+      <button id="btnFlip">⇋ พลิกกลับด้าน</button>
+    </div>
+
+    <button id="btnCloseEdit">✅ เสร็จแล้ว</button>
+  </div>
+</div>
+
+<script>
+/* =======================================================================
+   MODULE 1: EXISTING CUBE NET SYSTEM  (ของเดิม — คงความสามารถครบทุกอย่าง)
+   ======================================================================= */
+(function(){
+  const worldEl = document.getElementById('world');
+  const stageWrap = document.getElementById('stage-wrap');
+  const statusEl = document.getElementById('status');
+  const hintEl = document.getElementById('hint');
+  const btnFold = document.getElementById('btnFold');
+  const btnUnfold = document.getElementById('btnUnfold');
+  const btnReset = document.getElementById('btnReset');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnEdit = document.getElementById('btnEdit');
+
+  const editOverlay = document.getElementById('editOverlay');
+  const editTitle = document.getElementById('editTitle');
+  const editPreview = document.getElementById('editPreview');
+  const btnBrowse = document.getElementById('btnBrowse');
+  const fileInput = document.getElementById('fileInput');
+  const emojiGridEl = document.getElementById('emojiGrid');
+  const btnRotate = document.getElementById('btnRotate');
+  const rotVal = document.getElementById('rotVal');
+  const btnFlip = document.getElementById('btnFlip');
+  const btnCloseEdit = document.getElementById('btnCloseEdit');
+
+  const EMOJI_CHOICES = ['🐘','🐱','🐔','🕊️','🐶','🐒','🦁','🐯','🐻','🐼','🐨','🦊',
+                          '🐰','🐹','🐭','🐮','🐷','🐸','🦄','🐴','🐺','🦓','🦒','🐢',
+                          '🐙','🦋','🐝','⭐','❤️','🌟'];
+
+  const ROOT = 'elephant';
+  const INITIAL = {
+    elephant:{gx:0,gy:0, emoji:'🐘', label:'ช้าง',     color:'#d7ccc8'},
+    cat:     {gx:0,gy:-1,emoji:'🐱', label:'แมว',      color:'#ffe0b2'},
+    chicken: {gx:-1,gy:0,emoji:'🐔', label:'ไก่',      color:'#fff9c4'},
+    pigeon:  {gx:1,gy:0, emoji:'🕊️', label:'นกพิราบ',  color:'#c8e6c9'},
+    dog:     {gx:1,gy:1, emoji:'🐶', label:'สุนัข',     color:'#ffccbc'},
+    monkey:  {gx:2,gy:1, emoji:'🐒', label:'ลิง',      color:'#d1c4e9'},
+  };
+
+  const DIRS = {
+    up:   {dx:0,dy:-1, boxOffset:[0,-1], cssOrigin:'50% 100%', originOffset:[0,0.5],  axis:'X', sign:1},
+    down: {dx:0,dy:1,  boxOffset:[0,1],  cssOrigin:'50% 0%',   originOffset:[0,-0.5], axis:'X', sign:-1},
+    left: {dx:-1,dy:0, boxOffset:[-1,0], cssOrigin:'100% 50%', originOffset:[0.5,0],  axis:'Y', sign:-1},
+    right:{dx:1,dy:0,  boxOffset:[1,0],  cssOrigin:'0% 50%',   originOffset:[-0.5,0], axis:'Y', sign:1},
+  };
+  function dirFromDelta(dx,dy){
+    for(const k in DIRS) if(DIRS[k].dx===dx && DIRS[k].dy===dy) return DIRS[k];
+    return null;
+  }
+
+  let faces = {};
+  Object.keys(INITIAL).forEach(id=>{
+    faces[id] = Object.assign({}, INITIAL[id], {
+      rotate:0, flip:false,
+      content:{type:'emoji', value: INITIAL[id].emoji}
+    });
+    const el = document.createElement('div');
+    el.className='face';
+    el.style.background = faces[id].color;
+
+    const visual = document.createElement('div');
+    visual.className='face-visual';
+    const contentEl = document.createElement('div');
+    contentEl.className='face-content';
+    visual.appendChild(contentEl);
+    el.appendChild(visual);
+
+    faces[id].el = el;
+    faces[id].contentEl = contentEl;
+    updateFaceVisual(id);
+  });
+
+  function updateFaceVisual(id){
+    const f = faces[id], c = f.content;
+    f.contentEl.innerHTML = c.type==='image'
+      ? `<img src="${c.value}" draggable="false">`
+      : `<div class="emoji">${c.value}</div>`;
+    f.contentEl.style.transform = `rotate(${f.rotate}deg) scaleX(${f.flip?-1:1})`;
+  }
+
+  let fold = 0, rotX=-22, rotY=35, autoRotate=false, editMode=false, editPanelOpen=false;
+  let foldAnimId=null;
+
+  function buildTopology(){
+    const order=[ROOT], visited=new Set([ROOT]), parentOf={}, dirOf={};
+    let i=0;
+    while(i<order.length){
+      const cur=order[i++];
+      for(const id in faces){
+        if(visited.has(id)) continue;
+        const dx=faces[id].gx-faces[cur].gx, dy=faces[id].gy-faces[cur].gy;
+        const d=dirFromDelta(dx,dy);
+        if(!d) continue;
+        visited.add(id); parentOf[id]=cur; dirOf[id]=d;
+        order.push(id);
+      }
+    }
+    return {order, parentOf, dirOf, allVisited: visited.size===6};
+  }
+
+  function rebuildDOM(topo){
+    for(const id of topo.order){
+      const el = faces[id].el;
+      if(id===ROOT){
+        worldEl.appendChild(el);
+        el.style.left='50%'; el.style.top='50%';
+        el.style.marginLeft='calc(var(--S) / -2)';
+        el.style.marginTop='calc(var(--S) / -2)';
+        el.style.transformOrigin='';
+        el.style.transform='translateZ(calc(var(--S)/2))';
+      } else {
+        const p = faces[topo.parentOf[id]].el;
+        p.appendChild(el);
+        const d = topo.dirOf[id];
+        el.style.marginLeft=''; el.style.marginTop='';
+        el.style.left = `calc(var(--S) * ${d.boxOffset[0]})`;
+        el.style.top  = `calc(var(--S) * ${d.boxOffset[1]})`;
+        el.style.transformOrigin = d.cssOrigin;
+        el.dataset.axis = d.axis;
+        el.dataset.sign = d.sign;
+      }
+    }
+  }
+
+  function applyFold(){
+    const a = 90*fold;
+    for(const id in faces){
+      if(id===ROOT) continue;
+      const el=faces[id].el, axis=el.dataset.axis, sign=parseFloat(el.dataset.sign);
+      if(!axis) continue;
+      const ang = sign*a;
+      el.style.transform = axis==='X' ? `rotateX(${ang}deg)` : `rotateY(${ang}deg)`;
+    }
+  }
+  function applyWorld(){ worldEl.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`; }
+
+  function localMatrix(d,t){
+    const ang = d.sign*90*t;
+    let m = new DOMMatrix();
+    m = m.translate(d.boxOffset[0], d.boxOffset[1], 0);
+    m = m.translate(d.originOffset[0], d.originOffset[1], 0);
+    m = d.axis==='X' ? m.rotate(ang,0,0) : m.rotate(0,ang,0);
+    m = m.translate(-d.originOffset[0], -d.originOffset[1], 0);
+    return m;
+  }
+  function worldMatrices(topo){
+    const world = {}; world[ROOT] = new DOMMatrix().translate(0,0,0.5);
+    for(const id of topo.order){
+      if(id===ROOT) continue;
+      world[id] = world[topo.parentOf[id]].multiply(localMatrix(topo.dirOf[id],1));
+    }
+    return world;
+  }
+  function checkValidity(topo){
+    if(!topo.allVisited) return {ok:false, msg:'⚠️ ชิ้นส่วนไม่เชื่อมติดกันทุกด้าน ลองลากให้ชิดกัน'};
+    const world = worldMatrices(topo);
+    const seen = new Set();
+    for(const id in world){
+      const p = world[id].transformPoint(new DOMPoint(0,0,0,1));
+      const key = [p.x,p.y,p.z].map(v=>Math.round(v*2)/2).join(',');
+      seen.add(key);
+    }
+    const expected = new Set(['0.5,0,0','-0.5,0,0','0,0.5,0','0,-0.5,0','0,0,0.5','0,0,-0.5']);
+    const ok = seen.size===6 && [...seen].every(k=>expected.has(k));
+    return ok ? {ok:true} : {ok:false, msg:'⚠️ ผังนี้พับแล้วจะซ้อนทับกัน ลองจัดตำแหน่งใหม่'};
+  }
+
+  function refresh(){
+    const topo = buildTopology();
+    rebuildDOM(topo);
+    applyFold();
+    const v = checkValidity(topo);
+    if(v.ok){
+      statusEl.textContent='✅ พร้อมพับเป็นลูกบาศก์';
+      statusEl.className='ok';
+      btnFold.disabled=false;
+    } else {
+      statusEl.textContent=v.msg;
+      statusEl.className='bad';
+      btnFold.disabled=true;
+    }
+    return v.ok;
+  }
+
+  function animateFold(target, duration=900){
+    if(!checkValidity(buildTopology()).ok && target===1) return;
+    if(foldAnimId) cancelAnimationFrame(foldAnimId);
+    const start=fold, t0=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-t0)/duration);
+      const eased = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;
+      fold = start + (target-start)*eased;
+      applyFold();
+      if(p<1) foldAnimId=requestAnimationFrame(step); else foldAnimId=null;
+    }
+    foldAnimId=requestAnimationFrame(step);
+  }
+
+  btnFold.addEventListener('click', ()=> animateFold(1));
+  btnUnfold.addEventListener('click', ()=> animateFold(0));
+  btnReset.addEventListener('click', ()=>{
+    Object.keys(INITIAL).forEach(id=>{
+      faces[id].gx=INITIAL[id].gx; faces[id].gy=INITIAL[id].gy;
+      faces[id].rotate=0; faces[id].flip=false;
+      faces[id].content={type:'emoji', value: INITIAL[id].emoji};
+      updateFaceVisual(id);
+    });
+    animateFold(0);
+    rotX=-22; rotY=35; applyWorld();
+    autoRotate=false; btnAuto.classList.remove('on');
+    closeEditPanel();
+    setEditMode(false);
+    refresh();
+  });
+  btnAuto.addEventListener('click', ()=>{
+    autoRotate=!autoRotate; btnAuto.classList.toggle('on',autoRotate);
+  });
+  btnEdit.addEventListener('click', ()=> setEditMode(!editMode));
+
+  function setEditMode(on){
+    editMode = on;
+    btnEdit.classList.toggle('on', on);
+    stageWrap.classList.toggle('editing', on);
+    hintEl.textContent = on
+      ? '👆 ลากรูปเพื่อสลับตำแหน่ง หรือแตะเบาๆ เพื่อแก้ไขรูป'
+      : 'ลากนิ้วบนพื้นที่เพื่อหมุนลูกบาศก์ดูรอบด้าน';
+    if(on){ animateFold(0,300); autoRotate=false; btnAuto.classList.remove('on'); }
+    else { closeEditPanel(); }
+    refresh();
+  }
+
+  // ---------- หมุนลูกบาศก์ ----------
+  let worldDragging=false, lastX=0, lastY=0;
+  stageWrap.addEventListener('pointerdown', e=>{
+    if(editMode) return;
+    stageWrap.setPointerCapture(e.pointerId);
+    worldDragging=true; lastX=e.clientX; lastY=e.clientY;
+    autoRotate=false; btnAuto.classList.remove('on');
+  });
+  stageWrap.addEventListener('pointermove', e=>{
+    if(!worldDragging || editMode) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    rotY+=dx*0.4; rotX-=dy*0.4; applyWorld();
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>
+    stageWrap.addEventListener(ev, ()=> worldDragging=false));
+
+  // ---------- ลาก(สลับ) หรือแตะ(แก้ไข) แต่ละหน้า ----------
+  Object.keys(faces).forEach(id=>{
+    const el = faces[id].el;
+    let dragState=null;
+    el.addEventListener('pointerdown', e=>{
+      if(!editMode || editPanelOpen) return;
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      const S = el.getBoundingClientRect().width;
+      dragState = {
+        startX:e.clientX, startY:e.clientY, S,
+        origGx:faces[id].gx, origGy:faces[id].gy,
+        origTransform: el.style.transform, moved:false
+      };
+    });
+    el.addEventListener('pointermove', e=>{
+      if(!editMode || !dragState) return;
+      const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+      if(!dragState.moved && (Math.abs(dx)>6 || Math.abs(dy)>6)){
+        dragState.moved=true;
+        el.classList.add('dragging');
+      }
+      if(dragState.moved){
+        el.style.transform = `${dragState.origTransform} translate(${dx}px, ${dy}px)`;
+      }
+    });
+    function endDrag(e){
+      if(!editMode || !dragState) return;
+      const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+      el.classList.remove('dragging');
+      if(dragState.moved){
+        const S = dragState.S;
+        const dgx = Math.round(dx/S), dgy = Math.round(dy/S);
+        const targetGx = dragState.origGx+dgx, targetGy = dragState.origGy+dgy;
+        const occupant = Object.keys(faces).find(k=> k!==id && faces[k].gx===targetGx && faces[k].gy===targetGy);
+        if(occupant){
+          const tmp = {gx:faces[id].gx, gy:faces[id].gy};
+          faces[occupant].gx = tmp.gx; faces[occupant].gy = tmp.gy;
+          faces[id].gx = targetGx; faces[id].gy = targetGy;
+        } else {
+          faces[id].gx = targetGx; faces[id].gy = targetGy;
+        }
+        refresh();
+      } else {
+        refresh();
+        openEditPanel(id);
+      }
+      dragState=null;
+    }
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  });
+
+  // ---------- แผงแก้ไขรูป ----------
+  let currentEditId = null;
+
+  EMOJI_CHOICES.forEach(em=>{
+    const b = document.createElement('button');
+    b.textContent = em;
+    b.dataset.emoji = em;
+    b.addEventListener('click', ()=>{
+      if(!currentEditId) return;
+      faces[currentEditId].content = {type:'emoji', value: em};
+      updateFaceVisual(currentEditId);
+      refreshEditPanel();
+    });
+    emojiGridEl.appendChild(b);
+  });
+
+  function openEditPanel(id){
+    currentEditId = id;
+    editPanelOpen = true;
+    editTitle.textContent = `แก้ไขรูป: ${faces[id].label}`;
+    refreshEditPanel();
+    editOverlay.classList.add('show');
+  }
+  function closeEditPanel(){
+    editPanelOpen = false;
+    currentEditId = null;
+    editOverlay.classList.remove('show');
+  }
+  function refreshEditPanel(){
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    editPreview.innerHTML = f.content.type==='image'
+      ? `<img src="${f.content.value}">`
+      : `<div class="emoji">${f.content.value}</div>`;
+    const previewInner = editPreview.querySelector('img, .emoji');
+    if(previewInner) previewInner.style.transform = `rotate(${f.rotate}deg) scaleX(${f.flip?-1:1})`;
+    rotVal.textContent = f.rotate;
+    btnFlip.classList.toggle('active', f.flip);
+    Array.from(emojiGridEl.children).forEach(b=>{
+      b.classList.toggle('sel', f.content.type==='emoji' && b.dataset.emoji===f.content.value);
+    });
+  }
+
+  btnRotate.addEventListener('click', ()=>{
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    f.rotate = (f.rotate + 90) % 360;
+    updateFaceVisual(currentEditId);
+    refreshEditPanel();
+  });
+  btnFlip.addEventListener('click', ()=>{
+    if(!currentEditId) return;
+    const f = faces[currentEditId];
+    f.flip = !f.flip;
+    updateFaceVisual(currentEditId);
+    refreshEditPanel();
+  });
+  btnBrowse.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', ()=>{
+    const file = fileInput.files && fileInput.files[0];
+    if(!file || !currentEditId) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      faces[currentEditId].content = {type:'image', value: reader.result};
+      updateFaceVisual(currentEditId);
+      refreshEditPanel();
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+  btnCloseEdit.addEventListener('click', closeEditPanel);
+  editOverlay.addEventListener('click', e=>{
+    if(e.target===editOverlay) closeEditPanel();
+  });
+
+  function loop(){
+    if(autoRotate){ rotY+=0.4; applyWorld(); }
+    requestAnimationFrame(loop);
+  }
+
+  refresh();
+  applyWorld();
+  requestAnimationFrame(loop);
+
+  /* ---- สะพานเชื่อมไปยังระบบกลิ้ง: คืนทั้งตำแหน่ง "และมุมหมุนจริง" ของทุกหน้า ---- */
+  window.CubeNet = {
+    setStatus(msg, ok){ statusEl.textContent=msg; statusEl.className = ok?'ok':'bad'; },
+    fold(){ animateFold(1, 800); },
+    getFolded(){
+      const topo = buildTopology();
+      const v = checkValidity(topo);
+      if(!v.ok) return {ok:false, msg:v.msg};
+      const world = worldMatrices(topo);
+      const state={}, lib={};
+      const R = n => Math.round(n);
+      for(const id in world){
+        const M = world[id];
+        const o  = M.transformPoint(new DOMPoint(0,0,0,1));
+        const az = M.transformPoint(new DOMPoint(0,0,1,1));
+        const ay = M.transformPoint(new DOMPoint(0,1,0,1));
+        const n  = [R(az.x-o.x), R(az.y-o.y), R(az.z-o.z)];
+        const up = [-R(ay.x-o.x), -R(ay.y-o.y), -R(ay.z-o.z)];
+        const pos = window.CubeMath.posOfNormal(n);
+        if(!pos) return {ok:false, msg:'⚠️ ผังนี้ยังพับเป็นลูกบาศก์ไม่ได้'};
+        state[pos] = {id, rot: window.CubeMath.rotOfUp(pos, up)};
+        lib[id] = {
+          label: faces[id].label, color: faces[id].color,
+          content: Object.assign({}, faces[id].content),
+          rotate: faces[id].rotate, flip: faces[id].flip
+        };
+      }
+      return {ok:true, state, lib};
+    }
+  };
+})();
+
+
+/* =======================================================================
+   MODULE 2: SOUND SYSTEM
+   ======================================================================= */
+const Sound = (function(){
+  let ctx=null, on=true;
+  function ensure(){
+    if(!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) ctx = new AC();
+    }
+    if(ctx && ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(f1,f2,dur,type,gain,delay){
+    const c=ensure(); if(!c || !on) return;
+    const t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(), g=c.createGain();
+    o.type=type||'sine';
+    o.frequency.setValueAtTime(f1,t0);
+    if(f2) o.frequency.exponentialRampToValueAtTime(Math.max(40,f2), t0+dur);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(gain||0.16,t0+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.05);
+  }
+  return {
+    unlock(){ ensure(); },
+    toggle(){ on=!on; if(on) tone(660,880,.12,'square',.12); return on; },
+    click(){ tone(620,520,.07,'square',.08); },
+    thud(){ tone(170,70,.18,'sine',.26); tone(240,120,.1,'triangle',.1); },
+    correct(){ [523,659,784,1046].forEach((f,i)=> tone(f,null,.16,'sine',.15,i*0.09)); },
+    wrong(){ tone(380,300,.18,'triangle',.12); tone(300,250,.2,'triangle',.1,.16); },
+    hint(){ tone(880,1175,.18,'sine',.11); tone(1175,null,.16,'sine',.09,.16); },
+    star(){ tone(1046,1568,.22,'sine',.13); }
+  };
+})();
+document.addEventListener('pointerdown', ()=>Sound.unlock(), {once:true});
+document.addEventListener('click', e=>{ if(e.target.closest('button')) Sound.click(); }, true);
+
+
+/* =======================================================================
+   MODULE 3: CUBE STATE ENGINE (ตำแหน่ง + ทิศทางของรูปในแต่ละหน้า)
+   ======================================================================= */
+const POSITIONS = ['TOP','BOTTOM','FRONT','BACK','LEFT','RIGHT'];
+const POS_TH = {TOP:'ด้านบน',BOTTOM:'ด้านล่าง',FRONT:'ด้านหน้า',BACK:'ด้านหลัง',LEFT:'ด้านซ้าย',RIGHT:'ด้านขวา'};
+
+/* กรอบอ้างอิงของแต่ละหน้าในพิกัด CSS (x ขวา, y ลง, z เข้าหาผู้ดู)
+   n  = เวกเตอร์ตั้งฉากพุ่งออกนอกลูกบาศก์
+   ex = แกน x ของหน้านั้นในโลกจริง
+   u  = ทิศ "หัวขึ้น" ของรูปเมื่อมุมหมุน = 0 */
+const FRAME = {
+  FRONT : {n:[0,0,1],  ex:[1,0,0],  u:[0,-1,0]},
+  BACK  : {n:[0,0,-1], ex:[-1,0,0], u:[0,-1,0]},
+  RIGHT : {n:[1,0,0],  ex:[0,0,-1], u:[0,-1,0]},
+  LEFT  : {n:[-1,0,0], ex:[0,0,1],  u:[0,-1,0]},
+  TOP   : {n:[0,-1,0], ex:[1,0,0],  u:[0,0,-1]},
+  BOTTOM: {n:[0,1,0],  ex:[1,0,0],  u:[0,0,1]}
+};
+/* เมทริกซ์การกลิ้งแต่ละทิศ (ตรงกับ Animation 3D ทุกประการ)
+   right    : LEFT→TOP, TOP→RIGHT, RIGHT→BOTTOM, BOTTOM→LEFT
+   left     : RIGHT→TOP, TOP→LEFT, LEFT→BOTTOM, BOTTOM→RIGHT
+   forward  : BACK→TOP, TOP→FRONT, FRONT→BOTTOM, BOTTOM→BACK   (กลิ้งเข้าหาเรา ⬇️)
+   backward : FRONT→TOP, TOP→BACK, BACK→BOTTOM, BOTTOM→FRONT   (กลิ้งออกจากเรา ⬆️) */
+function rotVec(v, dir){
+  const x=v[0], y=v[1], z=v[2];
+  if(dir==='right')    return [-y,  x,  z];
+  if(dir==='left')     return [ y, -x,  z];
+  if(dir==='forward')  return [ x,  z, -y];
+  if(dir==='backward') return [ x, -z,  y];
+  return [x,y,z];
+}
+function dot3(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function faceUp(pos, rot){
+  const f=FRAME[pos], a=((rot||0)*Math.PI)/180, c=Math.cos(a), s=Math.sin(a);
+  return [Math.round(c*f.u[0]+s*f.ex[0]),
+          Math.round(c*f.u[1]+s*f.ex[1]),
+          Math.round(c*f.u[2]+s*f.ex[2])];
+}
+function posOfNormal(n){
+  return POSITIONS.find(p=>{
+    const q=FRAME[p].n; return q[0]===n[0] && q[1]===n[1] && q[2]===n[2];
+  });
+}
+function snap90(deg){ let a=Math.round(deg/90)*90; return ((a%360)+360)%360; }
+function rotOfUp(pos, up){
+  const f=FRAME[pos];
+  return snap90(Math.atan2(dot3(up,f.ex), dot3(up,f.u))*180/Math.PI);
+}
+window.CubeMath = {posOfNormal, rotOfUp};
+
+const SRC_TOP = {right:'LEFT', left:'RIGHT', forward:'BACK', backward:'FRONT'};
+const DIR_ARROW = {right:'➡️', left:'⬅️', forward:'⬇️', backward:'⬆️'};
+const DIR_TH    = {right:'กลิ้งไปทางขวา', left:'กลิ้งไปทางซ้าย',
+                   forward:'กลิ้งเข้าหาเรา', backward:'กลิ้งออกจากเรา'};
+
+function rollState(st, dir){
+  const out={};
+  POSITIONS.forEach(p=>{
+    const cell = st[p];
+    const n2 = rotVec(FRAME[p].n, dir);
+    const u2 = rotVec(faceUp(p, cell.rot), dir);
+    const q  = posOfNormal(n2);
+    out[q] = {id:cell.id, rot:rotOfUp(q, u2)};
+  });
+  return out;
+}
+function cloneState(st){
+  const o={}; POSITIONS.forEach(p=> o[p]={id:st[p].id, rot:st[p].rot||0}); return o;
+}
+function applyPath(st, ops){ return ops.reduce((s,d)=>rollState(s,d), cloneState(st)); }
+
+
+/* =======================================================================
+   MODULE 4: 3D ROLL RENDERER + ROLL ENGINE
+   ======================================================================= */
+const stageArea   = document.getElementById('stageArea');
+const rollViewport= document.getElementById('rollViewport');
+const rollWorld   = document.getElementById('rollWorld');
+const camEl       = document.getElementById('rollCam');
+const trackEl     = document.getElementById('rollTrack');
+const pivotEl     = document.getElementById('rollPivot');
+const cubeEl      = document.getElementById('rollCube');
+const groundEl    = document.getElementById('rollGround');
+const stairsEl    = document.getElementById('rollStairs');
+const hintArrow   = document.getElementById('hintArrow');
+const toastEl     = document.getElementById('toast');
+
+let RS = 90;
+let viewRX = -20, viewRY = -28;
+let posU = {x:0,y:0,z:0}, camU = {x:0,y:0,z:0};
+let scene = 'flat';
+let rollBusy = false, uiBusy = false, tourId = null, uiReady = false;
+
+const LETTER_LIB = {
+  B:{label:'B', color:'#fff59d', content:{type:'text',value:'B'}, rotate:0, flip:false},
+  K:{label:'K', color:'#c5e1a5', content:{type:'text',value:'K'}, rotate:0, flip:false},
+  D:{label:'D', color:'#90caf9', content:{type:'text',value:'D'}, rotate:0, flip:false},
+  J:{label:'J', color:'#f48fb1', content:{type:'text',value:'J'}, rotate:0, flip:false},
+  C:{label:'C', color:'#ffcc80', content:{type:'text',value:'C'}, rotate:0, flip:false},
+  G:{label:'G', color:'#ce93d8', content:{type:'text',value:'G'}, rotate:0, flip:false}
+};
+const LETTER_STATE = {
+  TOP:{id:'B',rot:0}, BOTTOM:{id:'K',rot:0}, FRONT:{id:'D',rot:0},
+  BACK:{id:'J',rot:0}, LEFT:{id:'C',rot:0},  RIGHT:{id:'G',rot:0}
+};
+
+let faceLib   = JSON.parse(JSON.stringify(LETTER_LIB));
+let startState= cloneState(LETTER_STATE);
+let cubeState = cloneState(LETTER_STATE);
+let customLib = null, customState = null, faceSet = 'letters';
+
+const H = 'calc(var(--RS) / 2)';
+const FACE_TF = {
+  FRONT : `translateZ(${H})`,
+  BACK  : `rotateY(180deg) translateZ(${H})`,
+  RIGHT : `rotateY(90deg) translateZ(${H})`,
+  LEFT  : `rotateY(-90deg) translateZ(${H})`,
+  TOP   : `rotateX(90deg) translateZ(${H})`,
+  BOTTOM: `rotateX(-90deg) translateZ(${H})`
+};
+const faceEls = {};
+POSITIONS.forEach(p=>{
+  const el=document.createElement('div');
+  el.className='rface'; el.dataset.pos=p;
+  el.style.transform = FACE_TF[p];
+  cubeEl.appendChild(el); faceEls[p]=el;
+});
+
+/* วาดรูป/ตัวอักษรพร้อม "ทิศทางจริง" = มุมของผู้ใช้ + มุมจากการกลิ้ง */
+function cellHTML(cell, px, extraRot){
+  const id  = (typeof cell==='string') ? cell : (cell && cell.id);
+  const rot = (typeof cell==='string') ? 0 : ((cell && cell.rot) || 0);
+  const f = faceLib[id];
+  if(!f) return '';
+  const total = (f.rotate||0) + rot + (extraRot||0);
+  const t = `transform:rotate(${total}deg) scaleX(${f.flip?-1:1})`;
+  if(f.content.type==='image'){
+    const size = px ? `width:${px}px;height:${px}px;object-fit:contain;` : '';
+    return `<img src="${f.content.value}" style="${size}${t}" draggable="false">`;
+  }
+  const size = px ? `font-size:${px}px;line-height:1.1;` : '';
+  return `<span style="${size}${t};display:inline-block">${f.content.value}</span>`;
+}
+function renderCube(){
+  POSITIONS.forEach(p=>{
+    const cell = cubeState[p], f = faceLib[cell.id], el = faceEls[p];
+    if(!f) return;
+    el.style.background = f.color || '#fff';
+    el.innerHTML = cellHTML(cell);
+  });
+  updateLiveDisplays();
+}
+function updateLiveDisplays(){ if(uiReady) NetMap.render(); }
+
+function applyView(){ rollWorld.style.transform = `rotateX(${viewRX}deg) rotateY(${viewRY}deg)`; }
+function applyTrack(){ trackEl.style.transform = `translate3d(${posU.x*RS}px, ${posU.y*RS}px, ${posU.z*RS}px)`; }
+function applyCam(instant){
+  camEl.style.transition = instant ? 'none' : 'transform .5s ease';
+  camEl.style.transform = `translate3d(${-camU.x*RS}px, ${-camU.y*RS}px, ${-camU.z*RS}px)`;
+}
+function updateCam(instant){
+  if(scene==='stairs'){ camU.x=0; camU.y=posU.y*0.55; camU.z=posU.z*0.55; }
+  else{
+    if(Math.abs(posU.x-camU.x)>1.3) camU.x=posU.x;
+    if(Math.abs(posU.z-camU.z)>1.3) camU.z=posU.z;
+    camU.y=0;
+  }
+  applyCam(instant);
+}
+function recenterIfNeeded(){
+  if(scene!=='flat') return;
+  const dx=Math.round(posU.x), dz=Math.round(posU.z);
+  let moved=false;
+  if(Math.abs(dx)>5){ posU.x-=dx; camU.x-=dx; moved=true; }
+  if(Math.abs(dz)>5){ posU.z-=dz; camU.z-=dz; moved=true; }
+  if(moved){ applyTrack(); applyCam(true); }
+}
+function setRS(){
+  RS = Math.round(Math.max(52, Math.min(110, Math.min(window.innerWidth*0.19, window.innerHeight*0.16))));
+  document.documentElement.style.setProperty('--RS', RS+'px');
+  applyTrack(); applyCam(true);
+}
+window.addEventListener('resize', setRS);
+
+function buildStairs(){
+  stairsEl.innerHTML='';
+  for(let k=0;k<5;k++){
+    const tread=document.createElement('div');
+    tread.className='stepTread';
+    tread.style.transform=`translate3d(0, calc(var(--RS) * ${0.5+k}), calc(var(--RS) * ${k})) rotateX(90deg)`;
+    stairsEl.appendChild(tread);
+    const riser=document.createElement('div');
+    riser.className='stepRiser';
+    riser.textContent='ขั้น '+(5-k);
+    riser.style.transform=`translate3d(0, calc(var(--RS) * ${k+1}), calc(var(--RS) * ${k+0.5}))`;
+    stairsEl.appendChild(riser);
+  }
+}
+buildStairs();
+
+function setScene(s){
+  scene = s;
+  groundEl.style.display = (s==='flat') ? '' : 'none';
+  stairsEl.style.display = (s==='stairs') ? '' : 'none';
+  posU={x:0,y:0,z:0}; camU={x:0,y:0,z:0};
+  applyTrack(); applyCam(true);
+}
+function resetCube(keepScene){
+  cubeState = cloneState(startState);
+  posU={x:0,y:0,z:0}; camU={x:0,y:0,z:0};
+  pivotEl.style.transition='none'; pivotEl.style.transform='none';
+  trackEl.style.transition='none';
+  applyTrack(); applyCam(true); renderCube();
+  clearHighlight(); hideArrow();
+  if(!keepScene && scene==='stairs') buildStairs();
+}
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function doRoll(dir, opt){
+  opt = opt||{};
+  return new Promise(resolve=>{
+    if(rollBusy){ resolve(false); return; }
+    if(scene==='stairs'){
+      dir='forward';
+      if(posU.y>=4){ toast('ถึงพื้นแล้ว! 🎉'); resolve(false); return; }
+    }
+    rollBusy = true;
+    const S = RS, dur = opt.duration || 520;
+    const P = {
+      right:    {p:[ S/2, S/2, 0   ], r:'rotateZ(90deg)',  d:[ 1,0, 0]},
+      left:     {p:[-S/2, S/2, 0   ], r:'rotateZ(-90deg)', d:[-1,0, 0]},
+      backward: {p:[ 0,   S/2,-S/2 ], r:'rotateX(90deg)',  d:[ 0,0,-1]},
+      forward:  {p:[ 0,   S/2, S/2 ], r:'rotateX(-90deg)', d:[ 0,0, 1]}
+    }[dir];
+    const [px,py,pz]=P.p;
+    pivotEl.style.transition = `transform ${dur}ms cubic-bezier(.36,.06,.24,1)`;
+    pivotEl.style.transform  =
+      `translate3d(${px}px,${py}px,${pz}px) ${P.r} translate3d(${-px}px,${-py}px,${-pz}px)`;
+    setTimeout(()=>{
+      cubeState = rollState(cubeState, dir);
+      posU.x+=P.d[0]; posU.y+=P.d[1]; posU.z+=P.d[2];
+      pivotEl.style.transition='none';
+      pivotEl.style.transform='none';
+      applyTrack(); renderCube();
+      Sound.thud();
+      if(scene==='stairs'){
+        const dd=Math.round(dur*0.42);
+        trackEl.style.transition=`transform ${dd}ms cubic-bezier(.4,0,.85,.6)`;
+        posU.y+=1; applyTrack();
+        setTimeout(()=>{ trackEl.style.transition='none'; Sound.thud(); done(); }, dd+30);
+      } else done();
+      function done(){
+        recenterIfNeeded(); updateCam(false);
+        rollBusy=false; resolve(true);
+      }
+    }, dur+25);
+  });
+}
+async function playPath(ops, dur, gap){
+  for(const op of ops){
+    showArrow(op);
+    await doRoll(op, {duration:dur||560});
+    await wait(gap||300);
+  }
+  hideArrow();
+}
+function highlight(pos){ clearHighlight(); if(faceEls[pos]) faceEls[pos].classList.add('hl'); }
+function clearHighlight(){ POSITIONS.forEach(p=>faceEls[p].classList.remove('hl')); }
+function showArrow(dir){ hintArrow.textContent = DIR_ARROW[dir]; hintArrow.classList.add('show'); }
+function hideArrow(){ hintArrow.classList.remove('show'); }
+function toast(msg, ms){
+  toastEl.innerHTML=msg; toastEl.classList.add('show');
+  clearTimeout(toastEl._t);
+  toastEl._t=setTimeout(()=>toastEl.classList.remove('show'), ms||1500);
+}
+
+/* ---------- SWIPE (กลิ้ง) vs ORBIT (หมุนมุมมอง) แยกกันชัดเจน ---------- */
+let gest=null;
+rollViewport.addEventListener('pointerdown', e=>{
+  Sound.unlock();
+  const onCube = !!(e.target.closest && e.target.closest('#rollCube'));
+  gest = {x:e.clientX, y:e.clientY, lx:e.clientX, ly:e.clientY, cube:onCube};
+  rollViewport.setPointerCapture(e.pointerId);
+  stopTour();
+});
+rollViewport.addEventListener('pointermove', e=>{
+  if(!gest) return;
+  const dx=e.clientX-gest.lx, dy=e.clientY-gest.ly;
+  gest.lx=e.clientX; gest.ly=e.clientY;
+  if(!gest.cube){
+    viewRY += dx*0.4;
+    viewRX = Math.max(-80, Math.min(10, viewRX - dy*0.35));
+    applyView();
+  }
+});
+function endGest(e){
+  if(!gest) return;
+  const dx=(e.clientX||gest.lx)-gest.x, dy=(e.clientY||gest.ly)-gest.y;
+  if(gest.cube && !uiBusy){
+    const T=24;
+    if(Math.abs(dx)>Math.abs(dy) && Math.abs(dx)>T) doRoll(dx>0?'right':'left');
+    else if(Math.abs(dy)>T) doRoll(dy<0?'backward':'forward');
+    else if(scene==='stairs') doRoll('forward');
+  }
+  gest=null;
+}
+['pointerup','pointercancel','pointerleave'].forEach(ev=> rollViewport.addEventListener(ev, endGest));
+
+function tourView(duration){
+  stopTour();
+  const keys=[{t:0,rx:-20},{t:.25,rx:-70},{t:.5,rx:8},{t:.75,rx:55},{t:1,rx:-20}];
+  const startY=viewRY, t0=performance.now(), dur=duration||9000;
+  function step(now){
+    const p=Math.min(1,(now-t0)/dur);
+    viewRY = startY + 360*p;
+    for(let i=0;i<keys.length-1;i++){
+      if(p>=keys[i].t && p<=keys[i+1].t){
+        const lp=(p-keys[i].t)/(keys[i+1].t-keys[i].t);
+        viewRX = keys[i].rx + (keys[i+1].rx-keys[i].rx)*lp;
+        break;
+      }
+    }
+    applyView();
+    if(p<1) tourId=requestAnimationFrame(step); else tourId=null;
+  }
+  tourId=requestAnimationFrame(step);
+}
+function stopTour(){ if(tourId){ cancelAnimationFrame(tourId); tourId=null; } }
+
+
+/* =======================================================================
+   MODULE 5: NET MAP — แผนภาพคลี่แบบสด (ใหม่)
+   ======================================================================= */
+/* ทิศที่ "มองเห็น" ของแต่ละช่องเมื่อคลี่ออกโดยให้ด้านบนอยู่ตรงกลาง */
+const NETVIEW = {
+  TOP   :{u:[0,0,-1], r:[1,0,0]},
+  BACK  :{u:[0,1,0],  r:[1,0,0]},
+  FRONT :{u:[0,-1,0], r:[1,0,0]},
+  LEFT  :{u:[0,0,-1], r:[0,-1,0]},
+  RIGHT :{u:[0,0,-1], r:[0,1,0]},
+  BOTTOM:{u:[0,0,1],  r:[1,0,0]}
+};
+const NET_CELLS = [
+  {pos:'BACK',   r:1, c:2, roll:'forward',  tag:'หลัง'},
+  {pos:'LEFT',   r:2, c:1, roll:'right',    tag:'ซ้าย'},
+  {pos:'TOP',    r:2, c:2, roll:null,       tag:'บน'},
+  {pos:'RIGHT',  r:2, c:3, roll:'left',     tag:'ขวา'},
+  {pos:'FRONT',  r:3, c:2, roll:'backward', tag:'หน้า'},
+  {pos:'BOTTOM', r:4, c:2, roll:null,       tag:'ล่าง'}
+];
+const NetMap = (function(){
+  const side   = document.getElementById('netSide');
+  const grid   = document.getElementById('netGrid');
+  const prev   = document.getElementById('netPrev');
+  const bOri   = document.getElementById('btnNetOrient');
+  const bPre   = document.getElementById('btnNetPredict');
+  const cells  = {};
+  let trueOrient = true, predict = true, tapRoll = true;
+
+  function init(){
+    grid.innerHTML='';
+    NET_CELLS.forEach(c=>{
+      const d=document.createElement('div');
+      d.className='netCell'+(c.roll?' tapable':'');
+      d.style.gridColumn=c.c; d.style.gridRow=c.r;
+      d.innerHTML=`<span class="cnt"></span><span class="tag">${c.tag}</span>`;
+      if(c.roll){
+        d.addEventListener('click', ()=>{
+          if(!tapRoll || uiBusy || rollBusy) return;
+          if(scene==='stairs'){ doRoll('forward'); return; }
+          doRoll(c.roll, {duration:600});
+        });
+      }
+      grid.appendChild(d);
+      cells[c.pos]=d;
+    });
+    bOri.classList.toggle('on', trueOrient);
+    bPre.classList.toggle('on', predict);
+    bOri.addEventListener('click', ()=>{
+      trueOrient=!trueOrient;
+      bOri.textContent = trueOrient? '📐 ทิศจริง':'📄 ตั้งตรง';
+      bOri.classList.toggle('on', trueOrient);
+      render();
+    });
+    bPre.addEventListener('click', ()=>{
+      predict=!predict;
+      bPre.classList.toggle('on', predict);
+      render();
+    });
+  }
+  function netRot(pos, cell){
+    if(!trueOrient) return 0;
+    const v=faceUp(pos, cell.rot), V=NETVIEW[pos];
+    return snap90(Math.atan2(dot3(v,V.r), dot3(v,V.u))*180/Math.PI);
+  }
+  function render(){
+    NET_CELLS.forEach(c=>{
+      const el=cells[c.pos]; if(!el) return;
+      const cell=cubeState[c.pos];
+      const f=faceLib[cell.id];
+      el.style.background = (f && f.color) || '#fff';
+      el.querySelector('.cnt').innerHTML = cellHTML(cell.id, null, netRot(c.pos, cell));
+      el.classList.toggle('isTop', c.pos==='TOP');
+    });
+    if(!predict){ prev.innerHTML=''; return; }
+    const dirs = (scene==='stairs') ? ['forward'] : ['left','right','backward','forward'];
+    prev.innerHTML = dirs.map(d=>{
+      const nx = rollState(cubeState, d).TOP;
+      return `<div class="prevItem">${DIR_ARROW[d]}<span class="mini">${cellHTML(nx, 18)}</span></div>`;
+    }).join('');
+  }
+  return {
+    init, render,
+    setVisible(v){ side.classList.toggle('hidden', !v); if(v) render(); },
+    isVisible(){ return !side.classList.contains('hidden'); },
+    setPredict(v){ predict=v; bPre.classList.toggle('on', predict); render(); },
+    setTapRoll(v){ tapRoll=v; },
+    aim(pos, on){ if(cells[pos]) cells[pos].classList.toggle('aim', !!on); },
+    clearAim(){ POSITIONS.forEach(p=> cells[p] && cells[p].classList.remove('aim')); }
+  };
+})();
+
+
+/* =======================================================================
+   MODULE 6: FACE SET / เชื่อมกับ CUBE NET เดิม
+   ======================================================================= */
+function loadFaceSet(which){
+  if(which==='custom' && customLib){
+    faceLib = JSON.parse(JSON.stringify(customLib));
+    startState = cloneState(customState);
+    faceSet='custom';
+  } else {
+    faceLib = JSON.parse(JSON.stringify(LETTER_LIB));
+    startState = cloneState(LETTER_STATE);
+    faceSet='letters';
+  }
+  resetCube(true);
+}
+function captureNetCube(silent){
+  const r = window.CubeNet.getFolded();
+  if(!r.ok){ if(!silent) window.CubeNet.setStatus(r.msg,false); return false; }
+  customLib = r.lib; customState = r.state;
+  return true;
+}
+document.getElementById('btnToRoll').addEventListener('click', ()=>{
+  if(!captureNetCube()) { toast('⚠️ ผังยังพับไม่ได้<br>ลองจัดใหม่นะ', 1800); return; }
+  window.CubeNet.fold();
+  window.CubeNet.setStatus('✅ พับแล้ว! ไปทดลองกลิ้งกันเลย', true);
+  loadFaceSet('custom');
+  setTimeout(()=>{ setMode('play'); toast('ลูกบาศก์ของหนูพร้อมแล้ว! 🎲', 1600); }, 500);
+});
+
+
+/* =======================================================================
+   MODULE 7: UI / MODE SWITCH (3 โหมด)
+   ======================================================================= */
+const panels = {
+  net:  document.getElementById('panelNet'),
+  learn:document.getElementById('panelLearn'),
+  play: document.getElementById('panelPlay')
+};
+const hintEl2 = document.getElementById('hint');
+const HINT_TXT = {
+  net:'ลากนิ้วบนพื้นที่เพื่อหมุนลูกบาศก์ดูรอบด้าน',
+  learn:'ดูแผนภาพคลี่ข้าง ๆ ไปด้วยนะ จะเห็นว่าด้านไหนกำลังจะขึ้นบน 😊',
+  play:'ปัดนิ้วบนลูกบาศก์ = กลิ้ง • ลากพื้นที่ว่าง = หมุนดูรอบ ๆ • แตะช่องในแผนภาพคลี่ = กลิ้งให้ด้านนั้นขึ้นบน'
+};
+let mode='learn';
+function mountStage(m){
+  const slot = panels[m] && panels[m].querySelector('.stageSlot');
+  if(slot && stageArea.parentNode!==slot) slot.appendChild(stageArea);
+}
+function setMode(m){
+  mode=m;
+  Object.keys(panels).forEach(k=> panels[k].classList.toggle('active', k===m));
+  document.querySelectorAll('#modeTabs .tab').forEach(b=> b.classList.toggle('active', b.dataset.mode===m));
+  hintEl2.textContent = HINT_TXT[m];
+  stopTour();
+  if(m==='net'){ stageArea.remove(); return; }
+  mountStage(m);
+  setRS();
+  if(m==='learn'){ NetMap.setTapRoll(false); Learn.enter(); }
+  if(m==='play'){ NetMap.setTapRoll(true); Play.enter(); }
+}
+document.querySelectorAll('#modeTabs .tab').forEach(b=>{
+  b.addEventListener('click', ()=> setMode(b.dataset.mode));
+});
+const btnSound=document.getElementById('btnSound');
+btnSound.addEventListener('click', ()=>{
+  const on=Sound.toggle(); btnSound.textContent = on?'🔊':'🔇';
+});
+
+
+/* =======================================================================
+   MODULE 8: STARS
+   ======================================================================= */
+const Stars = (function(){
+  let n=0;
+  const el=document.getElementById('learnStars');
+  function render(){ el.innerHTML = n? '⭐'.repeat(Math.min(n,12)) : ''; }
+  return { add(){ n++; Sound.star(); render(); }, reset(){ n=0; render(); }, get(){ return n; } };
+})();
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+
+/* =======================================================================
+   MODULE 9: LEARNING MODE (บทที่ 1-3)
+   ======================================================================= */
+const Learn = (function(){
+  const tabs=document.getElementById('lessonTabs');
+  const msg=document.getElementById('learnMsg');
+  const ctrl=document.getElementById('learnCtrl');
+  let lesson=1, l3={base:null, dir:null};
+
+  const titles={1:'บทที่ 1 • ลูกบาศก์มี 6 ด้าน',
+                2:'บทที่ 2 • ลองกลิ้งลูกบาศก์',
+                3:'บทที่ 3 • ด้านไหนอยู่ด้านบน?'};
+  function buildTabs(){
+    tabs.innerHTML='';
+    [1,2,3].forEach(n=>{
+      const b=document.createElement('button');
+      b.textContent='บทที่ '+n;
+      b.className=(n===lesson)?'active':'';
+      b.addEventListener('click', ()=> show(n));
+      tabs.appendChild(b);
+    });
+  }
+  function enter(){ setScene('flat'); resetCube(true); show(lesson); }
+  function show(n){
+    lesson=n; buildTabs(); clearHighlight(); hideArrow(); stopTour(); NetMap.clearAim();
+    setScene('flat'); resetCube(true);
+    ctrl.innerHTML='';
+    NetMap.setVisible(true);
+    NetMap.setPredict(n!==3);          // บท 3 ปิดตัวช่วยทำนาย ให้เด็กคิดเอง
+    if(n===1) lesson1(); else if(n===2) lesson2(); else lesson3();
+  }
+  function bigBtn(txt, cls, fn){
+    const b=document.createElement('button');
+    b.className='kid '+(cls||''); b.innerHTML=txt;
+    b.addEventListener('click', fn); ctrl.appendChild(b); return b;
+  }
+  function lesson1(){
+    msg.innerHTML = `${titles[1]}<br>“ลูกบาศก์มี 6 ด้านนะ” 🎲 ดูแผนภาพคลี่ข้าง ๆ ก็เห็นครบ 6 ด้านเลย`;
+    bigBtn('🔄 ดูรอบ ๆ','orange', ()=> tourView(9000));
+    bigBtn('🔤 สลับหน้า','teal', ()=>{
+      loadFaceSet(faceSet==='letters'?'custom':'letters');
+      toast(faceSet==='letters'? 'ใช้ตัวอักษร B K D J C G' : 'ใช้ลูกบาศก์ของหนู 🎲');
+    });
+    bigBtn('➡️ บทต่อไป','green', ()=> show(2));
+  }
+  function lesson2(){
+    msg.innerHTML = `${titles[2]}<br>กดลูกศร แล้วดูว่ารูปพลิกไปทางไหน 👀`;
+    const grid=document.createElement('div'); grid.className='dpad';
+    [['up','backward','⬆️','ออกจากเรา'],['left','left','⬅️','ซ้าย'],
+     ['down','forward','⬇️','เข้าหาเรา'],['right','right','➡️','ขวา']].forEach(([cls,dir,ar,lb])=>{
+      const b=document.createElement('button');
+      b.className=cls; b.innerHTML=`${ar}<span class="lbl">${lb}</span>`;
+      b.addEventListener('mouseenter', ()=> NetMap.aim(SRC_TOP[dir], true));
+      b.addEventListener('mouseleave', ()=> NetMap.clearAim());
+      b.addEventListener('click', async ()=>{
+        if(rollBusy) return;
+        NetMap.clearAim();
+        await doRoll(dir,{duration:660});
+        msg.innerHTML = `${titles[2]}<br>ตอนนี้ด้านบนคือ <span style="display:inline-block">${cellHTML(cubeState.TOP,28)}</span> — สังเกตว่ารูปเอียงตามการกลิ้งด้วยนะ`;
+      });
+      grid.appendChild(b);
+    });
+    ctrl.appendChild(grid);
+    bigBtn('↺ เริ่มใหม่','green', ()=> resetCube(true));
+    bigBtn('➡️ บทต่อไป','purple', ()=> show(3));
+  }
+  function lesson3(){
+    l3={base:null, dir:null};
+    msg.innerHTML = `${titles[3]}<br>กดกลิ้ง 1 ครั้ง แล้วทายว่าด้านไหนขึ้นมาอยู่บน 😊`;
+    bigBtn('🎲 กลิ้ง 1 ครั้ง','orange', async ()=>{
+      if(rollBusy) return;
+      const dirs=['right','left','forward','backward'];
+      const dir=dirs[Math.floor(Math.random()*dirs.length)];
+      l3.base=cloneState(cubeState); l3.dir=dir;
+      showArrow(dir);
+      await doRoll(dir,{duration:660});
+      hideArrow();
+      ask();
+    });
+    bigBtn('↺ เริ่มใหม่','green', ()=> show(3));
+  }
+  function ask(){
+    const ans=cubeState.TOP.id;
+    const ids=POSITIONS.map(p=>l3.base[p].id);
+    const others=shuffle(ids.filter(v=>v!==ans)).slice(0,3);
+    const choices=shuffle(others.concat(ans));
+    msg.innerHTML='“ตอนนี้ด้านไหนอยู่ด้านบน?”';
+    ctrl.innerHTML='';
+    const row=document.createElement('div'); row.className='choiceRow';
+    choices.forEach(id=>{
+      const b=document.createElement('button');
+      b.innerHTML=cellHTML(id,38);
+      b.addEventListener('click', async ()=>{
+        if(uiBusy) return;
+        if(id===ans){
+          Sound.correct(); toast('🎉 เก่งมาก!'); msg.innerHTML='🎉 เก่งมาก! ดูกลิ้งซ้ำช้า ๆ อีกทีนะ';
+          uiBusy=true; NetMap.setPredict(true);
+          cubeState=cloneState(l3.base); posU={x:0,y:0,z:0}; camU={x:0,y:0,z:0};
+          applyTrack(); applyCam(true); renderCube();
+          await wait(500);
+          showArrow(l3.dir); await doRoll(l3.dir,{duration:1100}); hideArrow();
+          uiBusy=false;
+          msg.innerHTML=`ด้านบนคือ ${cellHTML(cubeState.TOP,28)} ถูกต้อง! ⭐`;
+          Stars.add();
+        }else{
+          Sound.wrong(); msg.innerHTML='ลองดูอีกครั้งนะ 😊 กด 💡 ใบ้ ได้เลย';
+        }
+      });
+      row.appendChild(b);
+    });
+    ctrl.appendChild(row);
+
+    const bh=document.createElement('button');
+    bh.className='kid orange'; bh.innerHTML='💡 ใบ้';
+    bh.addEventListener('click', async ()=>{
+      if(uiBusy||rollBusy) return;
+      uiBusy=true; Sound.hint();
+      const src=SRC_TOP[l3.dir];
+      msg.innerHTML=`ดูนะ 👀 เมื่อกี้เรา${DIR_TH[l3.dir]} ${DIR_ARROW[l3.dir]}<br>ให้มองช่อง “${POS_TH[src].replace('ด้าน','')}” ในแผนภาพคลี่`;
+      NetMap.aim(src,true);
+      cubeState=cloneState(l3.base); renderCube();
+      highlight(src);
+      await wait(1600);
+      cubeState=applyPath(l3.base,[l3.dir]); renderCube();
+      clearHighlight(); NetMap.clearAim(); uiBusy=false;
+    });
+    ctrl.appendChild(bh);
+
+    const br=document.createElement('button');
+    br.className='kid green'; br.innerHTML='🔁 เล่นใหม่';
+    br.addEventListener('click', ()=> show(3));
+    ctrl.appendChild(br);
+  }
+  return {enter, show};
+})();
+
+
+/* =======================================================================
+   MODULE 10: FREE PLAY MODE
+   ======================================================================= */
+const Play = (function(){
+  let stairMode=false;
+  document.querySelectorAll('#panelPlay .dpad button').forEach(b=>{
+    b.addEventListener('click', ()=>{ if(!uiBusy) doRoll(b.dataset.roll); });
+    b.addEventListener('mouseenter', ()=> NetMap.aim(SRC_TOP[b.dataset.roll], true));
+    b.addEventListener('mouseleave', ()=> NetMap.clearAim());
+  });
+  document.getElementById('btnPlayReset').addEventListener('click', ()=>{
+    setScene(stairMode?'stairs':'flat'); resetCube(true);
+  });
+  const btnStair=document.getElementById('btnStair');
+  btnStair.addEventListener('click', ()=>{
+    stairMode=!stairMode;
+    btnStair.classList.toggle('on', stairMode);
+    btnStair.innerHTML = stairMode? '🟩 พื้นราบ' : '🪜 บันได';
+    setScene(stairMode?'stairs':'flat'); resetCube(true);
+    toast(stairMode? 'กด ⬇️ หรือปัดลง เพื่อกลิ้งลงบันได 🪜' : 'กลับมาพื้นราบแล้ว', 1800);
+  });
+  document.getElementById('btnFaceSetPlay').addEventListener('click', ()=>{
+    if(faceSet==='letters'){ if(!customLib) captureNetCube(true); loadFaceSet('custom'); toast('ใช้ลูกบาศก์ของหนู 🎲'); }
+    else { loadFaceSet('letters'); toast('ใช้ตัวอักษร B K D J C G'); }
+  });
+  const btnNet=document.getElementById('btnNetToggle');
+  btnNet.classList.add('on');
+  btnNet.addEventListener('click', ()=>{
+    const v=!NetMap.isVisible();
+    NetMap.setVisible(v);
+    btnNet.classList.toggle('on', v);
+    btnNet.innerHTML = v? '🗺️ แผนภาพคลี่' : '🙈 ซ่อนแผนภาพ';
+  });
+  function enter(){
+    setScene(stairMode?'stairs':'flat');
+    resetCube(true);
+    NetMap.setVisible(true); NetMap.setPredict(true);
+    btnNet.classList.add('on'); btnNet.innerHTML='🗺️ แผนภาพคลี่';
+  }
+  return {enter};
+})();
+
+
+/* =======================================================================
+   MODULE 11: BOOT
+   ======================================================================= */
+setRS();
+applyView();
+NetMap.init();
+uiReady = true;
+renderCube();
+setTimeout(()=>{ captureNetCube(true); }, 300);   // เก็บลูกบาศก์สัตว์จากผังเริ่มต้นไว้ใช้
+setMode('learn');
+</script>
+</body>
+</html>
